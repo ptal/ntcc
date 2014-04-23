@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RUNTIME_NTCC
-#define RUNTIME_NTCC
+#ifndef NTCC_RUNTIME_HPP
+#define NTCC_RUNTIME_HPP
 
+#include "store.hpp"
 
+class Tell
+{
+
+};
 
 #endif

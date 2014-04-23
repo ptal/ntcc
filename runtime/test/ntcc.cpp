@@ -14,7 +14,18 @@
 
 #include "../include/ntcc.hpp"
 
-int main()
-{
+// main function
+int main(int argc, char* argv[]) {
+  // create model and search engine
+  Store* m = new Store();
+  m->new_var("x", 0, 10);
+  m->entail("x", IRT_EQ, 11);
+  m->branching();
+  DFS<Store> e(m);
+  delete m;
+  // search and print all solutions
+  while (Store* s = e.next()) {
+    s->print(); delete s;
+  }
   return 0;
 }
