@@ -14,13 +14,15 @@
 
 #include "../include/ntcc.hpp"
 
+using namespace Gecode;
+
 // main function
 int main(int argc, char* argv[]) {
   // create model and search engine
   Store* m = new Store();
-  m->new_var("x", 0, 10);
-  m->entail("x", IRT_EQ, 11);
-  m->branching();
+  auto x = m->declare(0, 10);
+  m->entail(x > 5);
+  m->prepare();
   DFS<Store> e(m);
   delete m;
   // search and print all solutions

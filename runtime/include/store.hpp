@@ -17,54 +17,52 @@
 
 #include <gecode/int.hh>
 #include <gecode/search.hh>
+#include <gecode/minimodel.hh>
 
 #include <map>
 #include <string>
+#include <iostream>
 
-using namespace Gecode;
-
-class Store : public Space
+class Store : public Gecode::Space
 {
-  std::map<std::string, IntVar> constraints;
+  Gecode::IntVarArray constraints;
+  Gecode::IntVarArgs constraints_buffer;
 public:
   Store() = default;
 
-  void entail(std::string x, IntRelType r, std::string y)
+  template <class ConstraintExpr>
+  void entail(const ConstraintExpr& expr)
   {
-    rel(*this, constraints.at(x), r, constraints.at(y));
+    Gecode::rel(*this, expr);
   }
 
-  void entail(std::string x, IntRelType r, int c)
+  Gecode::IntVar declare(int min, int max)
   {
-    rel(*this, constraints.at(x), r, c);
+    Gecode::IntVar var(*this, min, max);
+    constraints_buffer << var;
+    return var;
   }
 
-  void new_var(std::string s, int min, int max)
+  Store(bool share, Store& s) : Gecode::Space(share, s)
   {
-    constraints.emplace(std::make_pair(s, IntVar(*this, min, max)));
+    constraints.update(*this, share, s.constraints);
   }
 
-  Store(bool share, Store& s) : Space(share, s)
-  {
-    for(auto &binding : s.constraints)
-      constraints[binding.first].update(*this, share, binding.second);
-  }
-
-  virtual Space* copy(bool share)
+  virtual Gecode::Space* copy(bool share)
   {
     return new Store(share, *this);
   }
 
-  void branching()
+  void prepare()
   {
-    for(auto& binding: constraints)
-      branch(*this, binding.second, INT_VAL_MIN());
+    using namespace Gecode;
+    constraints = IntVarArray(*this, constraints_buffer);
+    branch(*this, constraints, INT_VAR_NONE(), INT_VAL_MIN());
   }
 
   void print() const
   {
-    for(const auto& binding: constraints)
-      std::cout << binding.first << " = " << binding.second << std::endl;
+    std::cout << constraints << std::endl;
   }
 };
 
