@@ -1,4 +1,5 @@
-// Copyright 2014 Pierre Talbot (IRCAM)
+// Copyright 2014 IRCAM (Institut de Recherche et Coordination Acoustique/Musique)
+// Copyright 2014 Pierre Talbot <ptalbot@hyc.io>
 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

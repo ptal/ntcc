@@ -1,4 +1,5 @@
-// Copyright 2014 Pierre Talbot (IRCAM)
+// Copyright 2014 IRCAM (Institut de Recherche et Coordination Acoustique/Musique)
+// Copyright 2014 Pierre Talbot <ptalbot@hyc.io>
 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,12 +20,12 @@ using namespace Gecode;
 // main function
 int main(int argc, char* argv[]) {
   // create model and search engine
-  Store* m = new Store();
-  auto x = m->declare(0, 10);
-  m->entail(x > 5);
-  m->prepare();
-  DFS<Store> e(m);
-  delete m;
+  Store* store = new Store();
+  auto x = store->declare(0, 10);
+  store->entail(x > 5);
+  store->prepare();
+  DFS<Store> e(store);
+  delete store;
   // search and print all solutions
   while (Store* s = e.next()) {
     s->print(); delete s;
