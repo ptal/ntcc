@@ -16,6 +16,8 @@
 #ifndef NTCC_RUNTIME_STORE_HPP
 #define NTCC_RUNTIME_STORE_HPP
 
+#include <boost/iterator/transform_iterator.hpp>
+
 #include <gecode/int.hh>
 #include <gecode/search.hh>
 #include <gecode/minimodel.hh>
@@ -23,11 +25,79 @@
 #include <map>
 #include <string>
 #include <iostream>
+#include <memory>
+
+namespace fun{
+
+template <class Container>
+struct last
+{
+  using value_type = typename Container::value_type;
+  value_type& operator()(Container& container) const
+  {
+    return container.back();
+  }
+  const value_type& operator()(const Container& container) const
+  {
+    return container.back();
+  }
+};
+
+}
+
+class ScopedVariables
+{
+public:
+  using value_type = Gecode::IntVar;
+  using sequence = std::vector<value_type>;
+  using iterator = 
+    boost::transform_iterator<fun::last<sequence>, 
+      std::vector<sequence>::iterator>;
+
+ private:
+  std::vector<sequence> variables;
+
+ public:
+  value_type& operator[](size_t i)
+  {
+    variables[i].back();
+  }
+
+  const value_type& operator[](size_t i) const
+  {
+    variables[i].back();
+  }
+
+  void hide(int i, const value_type& value)
+  {
+    variables[i].push_back(value);
+  }
+
+  void push_back(const value_type& value)
+  {
+    variables.push_back({value});
+  }
+
+  size_t size() const
+  {
+    return variables.size();
+  }
+
+  iterator begin()
+  {
+    return boost::make_transform_iterator<fun::last<sequence>>(variables.begin());
+  }
+
+  iterator end()
+  {
+    return boost::make_transform_iterator<fun::last<sequence>>(variables.end());
+  }
+};
 
 class Store : public Gecode::Space
 {
+  ScopedVariables variables;
   Gecode::IntVarArray constraints;
-  Gecode::IntVarArgs constraints_buffer;
 public:
   Store() = default;
 
@@ -37,11 +107,20 @@ public:
     Gecode::rel(*this, expr);
   }
 
-  Gecode::IntVar declare(int min, int max)
+  size_t declare(int min, int max)
   {
-    Gecode::IntVar var(*this, min, max);
-    constraints_buffer << var;
-    return var;
+    variables.push_back(Gecode::IntVar(*this, min, max));
+    return variables.size() - 1;
+  }
+
+  Gecode::IntVar const& operator[](size_t i) const
+  {
+    return variables[i];
+  }
+
+  Gecode::IntVar& operator[](size_t i)
+  {
+    return variables[i];
   }
 
   Store(bool share, Store& s) : Gecode::Space(share, s)
@@ -54,16 +133,30 @@ public:
     return new Store(share, *this);
   }
 
-  void prepare()
+  template <class ConstraintExpr>
+  bool ask(const ConstraintExpr& expr)
   {
-    using namespace Gecode;
-    constraints = IntVarArray(*this, constraints_buffer);
-    branch(*this, constraints, INT_VAR_NONE(), INT_VAL_MIN());
+    Store s(true, *this);
+    return s.ask_impl(expr);
   }
 
   void print() const
   {
     std::cout << constraints << std::endl;
+  }
+
+ private:
+  template <class ConstraintExpr>
+  bool ask_impl(const ConstraintExpr& expr)
+  {
+    using namespace Gecode;
+    entail(expr);
+    IntVarArgs gvars(variables.begin(), variables.end());
+    constraints = IntVarArray(*this, gvars);
+    branch(*this, constraints, INT_VAR_NONE(), INT_VAL_MIN());
+    DFS<Store> e(this);
+    std::unique_ptr<Store> s(e.next());
+    return static_cast<bool>(s);
   }
 };
 

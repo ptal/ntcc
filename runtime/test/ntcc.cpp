@@ -20,15 +20,29 @@ using namespace Gecode;
 // main function
 int main(int argc, char* argv[]) {
   // create model and search engine
-  Store* store = new Store();
-  auto x = store->declare(0, 10);
-  store->entail(x > 5);
-  store->prepare();
-  DFS<Store> e(store);
-  delete store;
-  // search and print all solutions
-  while (Store* s = e.next()) {
-    s->print(); delete s;
-  }
+  Store store;
+  auto x = store.declare(0, 10);
+  auto y = store.declare(5, 5);
+  store.entail(store[x] > store[y]);
+
+  if(store.ask(store[x] >= 5))
+    std::cout << "x >= 5";
+  else
+    std::cout << "x < 5";
+  std::cout << std::endl;
+  
+  if(store.ask(store[x] < 5))
+    std::cout << "x < 5";
+  else
+    std::cout << "x >= 5";
+  std::cout << std::endl;
+
+
+
+  store.print();
+  // typedef Tell<Less<Variable<0>, Constant<7>>> ProgramSource;
+
+  // typedef Compile<ProgramSource> Program;
+
   return 0;
 }

@@ -1,0 +1,1 @@
+g++ ntcc.cpp -o ntcc -std=c++11 -lgecodeint -lgecodekernel -lgecodeminimodel -lgecodesearch -lgecodedriver -lgecodesupport
