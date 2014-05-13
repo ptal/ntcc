@@ -145,21 +145,20 @@ public:
   }
 };
 
-class ConstraintBase;
+class Constraint;
 
 class Store
 {
   SymbolTable variables;
   std::unique_ptr<StoreSpace> transient_store;
-  std::vector<std::unique_ptr<ConstraintBase>> constraints;
+  std::vector<std::unique_ptr<Constraint>> constraints;
 
 public:
   Store() = default;
 
-  template <class Constraint>
-  void tell(const Constraint& constraint)
+  void tell(std::unique_ptr<Constraint>&& constraint)
   {
-    constraints.emplace_back(new Constraint(constraint));
+    constraints.push_back(std::move(constraint));
   }
 
   StoreSpace& space()

@@ -41,14 +41,14 @@ struct Constant
   }
 };
 
-struct ConstraintBase
+struct Constraint
 {
   virtual void tell(Store&) = 0;
-  virtual ~ConstraintBase(){}
+  virtual ~Constraint(){}
 };
 
 template <class L, class R>
-struct Less : ConstraintBase
+struct Less : Constraint
 {
   L lhs;
   R rhs;
@@ -64,43 +64,83 @@ struct Less : ConstraintBase
   virtual ~Less(){}
 };
 
-template <class Program>
-struct Local
+template <class L, class R>
+std::unique_ptr<Less<L,R>> less(L&& lhs, R&& rhs)
+{
+  return std::unique_ptr<Less<L,R>>(new Less<L,R>(std::move(lhs), std::move(rhs)));
+}
+
+struct Program
+{
+  // Execute internal transition.
+  virtual std::unique_ptr<Program> internal_run(Store&) = 0;
+  virtual ~Program(){}
+};
+
+struct Local : Program
 {
   size_t var;
   FiniteIntegerDomain domain;
-  Program program;
+  std::unique_ptr<Program> program;
 
-  Local(size_t var, FiniteIntegerDomain&& domain, Program&& program)
-  : var(var), domain(domain), program(program)
+  Local(size_t var, FiniteIntegerDomain&& domain, 
+    std::unique_ptr<Program>&& program)
+  : var(var), domain(domain), program(std::move(program))
   {}
 
-  void operator()(Store& store)
+  virtual std::unique_ptr<Program> internal_run(Store& store)
   {
     store.declare(var, domain);
-    program(store);
+    std::unique_ptr<Program> residual = program->internal_run(store);
     store.unstack(var);
+    return residual;
   }
+
+  virtual ~Local(){}
 };
 
-struct Skip
+struct Skip : Program
 {
-  void operator()(Store&){} 
+  virtual std::unique_ptr<Program> internal_run(Store&)
+  {
+    return nullptr;
+  }
+
+  virtual ~Skip(){}
 };
 
-template <class Constraint>
-struct Tell
+struct Tell : Program
 {
-  Constraint constraint;
+  std::unique_ptr<Constraint> constraint;
 
-  Tell(Constraint&& constraint)
-  : constraint(constraint)
+  Tell(std::unique_ptr<Constraint>&& constraint)
+  : constraint(std::move(constraint))
   {}
 
-  void operator()(Store& store)
+  virtual std::unique_ptr<Program> internal_run(Store& store)
   {
-    store.tell(constraint);
+    assert(constraint);
+    store.tell(std::move(constraint));
+    return nullptr;
   }
+
+  virtual ~Tell(){}
 };
+
+std::unique_ptr<Local> local(size_t var, FiniteIntegerDomain&& domain, 
+  std::unique_ptr<Program>&& program)
+{
+  return std::unique_ptr<Local>(new Local(var, std::move(domain), std::move(program)));
+}
+
+std::unique_ptr<Skip> skip()
+{
+  return std::unique_ptr<Skip>(new Skip());
+}
+
+std::unique_ptr<Tell> tell(std::unique_ptr<Constraint>&& constraint)
+{
+  return std::unique_ptr<Tell>(new Tell(std::move(constraint)));
+}
 
 #endif

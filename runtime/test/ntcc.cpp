@@ -17,27 +17,20 @@
 
 using namespace Gecode;
 
-// main function
 int main(int argc, char* argv[]) 
 {
-  using constraint = Less<Variable, Constant>;
-  using tell = Tell<constraint>;
-  using local1 = Local<tell>;
-  using local2 = Local<local1>;
-
   // local(x, y) tell(x < 4)
   // dom(x) = [0..10]
   // dom(y) = [0..10]
 
-  local2 pgm(
+  auto pgm = local(
     0, FiniteIntegerDomain(0, 10), 
-    local1(
+    local(
       1, FiniteIntegerDomain(0, 10),
-      tell(constraint(Variable(0), Constant(4)))));
+      tell(less(Variable(0), Constant(4)))));
 
   Store store;
-
-  pgm(store);
+  auto residual_pgm = pgm->internal_run(store);
 
   return 0;
 }
