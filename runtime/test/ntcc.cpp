@@ -18,31 +18,26 @@
 using namespace Gecode;
 
 // main function
-int main(int argc, char* argv[]) {
-  // create model and search engine
+int main(int argc, char* argv[]) 
+{
+  using constraint = Less<Variable, Constant>;
+  using tell = Tell<constraint>;
+  using local1 = Local<tell>;
+  using local2 = Local<local1>;
+
+  // local(x, y) tell(x < 4)
+  // dom(x) = [0..10]
+  // dom(y) = [0..10]
+
+  local2 pgm(
+    0, FiniteIntegerDomain(0, 10), 
+    local1(
+      1, FiniteIntegerDomain(0, 10),
+      tell(constraint(Variable(0), Constant(4)))));
+
   Store store;
-  auto x = store.declare(0, 10);
-  auto y = store.declare(5, 5);
-  store.entail(store[x] > store[y]);
 
-  if(store.ask(store[x] >= 5))
-    std::cout << "x >= 5";
-  else
-    std::cout << "x < 5";
-  std::cout << std::endl;
-  
-  if(store.ask(store[x] < 5))
-    std::cout << "x < 5";
-  else
-    std::cout << "x >= 5";
-  std::cout << std::endl;
-
-
-
-  store.print();
-  // typedef Tell<Less<Variable<0>, Constant<7>>> ProgramSource;
-
-  // typedef Compile<ProgramSource> Program;
+  pgm(store);
 
   return 0;
 }

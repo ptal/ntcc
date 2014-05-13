@@ -18,79 +18,88 @@
 
 #include "store.hpp"
 
-template <size_t var>
-struct Variable{};
 
-template <size_t value>
-struct Constant{};
-
-template <class T, class U>
-struct Less{};
-
-template <class Constraint>
-struct Tell{};
-
-template <class T>
-struct Return
+struct Variable
 {
-  T v;
-  Return(T v) : v(v){}
-  T operator()(Store)
+  size_t n;
+  Variable(size_t n) : n(n) {}
+
+  Gecode::IntVar& operator()(Store& store) const
   {
-    return v;
+    return store.var(n);
   }
 };
 
-// template <class Prog, class Cont>    // compile-time type parameters
-// struct Bind
-// {
-//   Bind(Prog prog, Cont cont)
-//   : prog(prog), cont(cont) {}
-
-//   auto operator()(Store& store) 
-//     -> decltype(cont(prog(store))(store))
-//   {
-//     return cont(prog(store))(store);
-//   }
-
-//   Prog prog;
-//   Cont cont;
-// };
-
-template <class Exp>
-struct Compile;
-
-// template <size_t value>
-// struct Compile<Constant<value>>
-// : Return<Constant<value>>
-// {
-//   Compile() : Return(value) {}
-// };
-
-template <size_t var>
-struct Compile<Variable<var>>
+struct Constant
 {
-  Gecode::IntVar operator()(Store& store)
+  int n;
+  Constant(int n) : n(n) {}
+
+  int operator()(Store&) const
   {
-    return store[var];
+    return n;
   }
+};
+
+struct ConstraintBase
+{
+  virtual void tell(Store&) = 0;
+  virtual ~ConstraintBase(){}
 };
 
 template <class L, class R>
-struct Compile<Less<L, R>>
+struct Less : ConstraintBase
 {
-  Gecode::LinIntExpr operator()(Store& store)
+  L lhs;
+  R rhs;
+
+  Less(L&& lhs, R&& rhs)
+  : lhs(lhs), rhs(rhs){}
+
+  virtual void tell(Store& store)
   {
-    return Compile<L>()(store) < Compile<R>()(store);
+    Gecode::rel(store.space(), lhs(store), Gecode::IRT_LE, rhs(store));
+  }
+
+  virtual ~Less(){}
+};
+
+template <class Program>
+struct Local
+{
+  size_t var;
+  FiniteIntegerDomain domain;
+  Program program;
+
+  Local(size_t var, FiniteIntegerDomain&& domain, Program&& program)
+  : var(var), domain(domain), program(program)
+  {}
+
+  void operator()(Store& store)
+  {
+    store.declare(var, domain);
+    program(store);
+    store.unstack(var);
   }
 };
 
-template <class C>
-struct Compile<Tell<C>>
+struct Skip
 {
+  void operator()(Store&){} 
+};
+
+template <class Constraint>
+struct Tell
+{
+  Constraint constraint;
+
+  Tell(Constraint&& constraint)
+  : constraint(constraint)
+  {}
+
   void operator()(Store& store)
   {
-    store.entail(Compile<C>()(store));
+    store.tell(constraint);
   }
 };
 
