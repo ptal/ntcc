@@ -20,18 +20,18 @@ using namespace Gecode;
 // main function
 int main(int argc, char* argv[]) {
   // create model and search engine
-  Store store;
-  auto x = store.declare(0, 10);
-  auto y = store.declare(5, 5);
-  store.entail(store[x] > store[y]);
+  std::unique_ptr<Store> store(new Store());
+  auto x = store->declare(0, 10);
+  auto y = store->declare(5, 5);
+  store->entail(store->operator[](x) > store->operator[](y));
 
-  if(store.ask(store[x] >= 5))
+  if(store->ask(store->operator[](x) >= 5))
     std::cout << "x >= 5";
   else
     std::cout << "x < 5";
   std::cout << std::endl;
   
-  if(store.ask(store[x] < 5))
+  if(store->ask(store->operator[](x) < 5))
     std::cout << "x < 5";
   else
     std::cout << "x >= 5";
@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
 
 
 
-  store.print();
+  store->print();
   // typedef Tell<Less<Variable<0>, Constant<7>>> ProgramSource;
 
   // typedef Compile<ProgramSource> Program;

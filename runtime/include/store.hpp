@@ -68,7 +68,7 @@ public:
     variables[i].back();
   }
 
-  void hide(int i, const value_type& value)
+  void hide(size_t i, const value_type& value)
   {
     variables[i].push_back(value);
   }
@@ -136,8 +136,8 @@ public:
   template <class ConstraintExpr>
   bool ask(const ConstraintExpr& expr)
   {
-    Store s(true, *this);
-    return s.ask_impl(expr);
+    std::unique_ptr<Store> s(new Store(true, *this));
+    return s->ask_impl(expr);
   }
 
   void print() const
@@ -154,9 +154,10 @@ public:
     IntVarArgs gvars(variables.begin(), variables.end());
     constraints = IntVarArray(*this, gvars);
     branch(*this, constraints, INT_VAR_NONE(), INT_VAL_MIN());
-    DFS<Store> e(this);
-    std::unique_ptr<Store> s(e.next());
-    return static_cast<bool>(s);
+    return true;
+    // DFS<Store> e(this);
+    // std::unique_ptr<Store> s(e.next());
+    // return static_cast<bool>(s);
   }
 };
 
