@@ -17,32 +17,20 @@
 
 using namespace Gecode;
 
-// main function
-int main(int argc, char* argv[]) {
-  // create model and search engine
-  std::unique_ptr<Store> store(new Store());
-  auto x = store->declare(0, 10);
-  auto y = store->declare(5, 5);
-  store->entail(store->operator[](x) > store->operator[](y));
+int main(int argc, char* argv[]) 
+{
+  // local(x, y) tell(x < 4)
+  // dom(x) = [0..10]
+  // dom(y) = [0..10]
 
-  if(store->ask(store->operator[](x) >= 5))
-    std::cout << "x >= 5";
-  else
-    std::cout << "x < 5";
-  std::cout << std::endl;
-  
-  if(store->ask(store->operator[](x) < 5))
-    std::cout << "x < 5";
-  else
-    std::cout << "x >= 5";
-  std::cout << std::endl;
+  auto pgm = local(
+    0, FiniteIntegerDomain(0, 10), 
+    local(
+      1, FiniteIntegerDomain(0, 10),
+      tell(less(Variable(0), Constant(4)))));
 
-
-
-  store->print();
-  // typedef Tell<Less<Variable<0>, Constant<7>>> ProgramSource;
-
-  // typedef Compile<ProgramSource> Program;
+  Store store;
+  auto residual_pgm = pgm->internal_run(store);
 
   return 0;
 }

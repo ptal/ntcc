@@ -26,6 +26,7 @@
 #include <string>
 #include <iostream>
 #include <memory>
+#include <stack>
 
 namespace fun{
 
@@ -35,47 +36,66 @@ struct last
   using value_type = typename Container::value_type;
   value_type& operator()(Container& container) const
   {
-    return container.back();
+    return container.top();
   }
   const value_type& operator()(const Container& container) const
   {
-    return container.back();
+    return container.top();
   }
 };
 
 }
 
-class ScopedVariables
+struct FiniteIntegerDomain
+{
+  int min;
+  int max;
+
+  FiniteIntegerDomain(int min, int max)
+  : min(min), max(max)
+  {}
+};
+
+class SymbolTable
 {
 public:
-  using value_type = Gecode::IntVar;
-  using sequence = std::vector<value_type>;
+  using value_type = FiniteIntegerDomain;
+  using scoping_stack = std::stack<value_type>;
   using iterator = 
-    boost::transform_iterator<fun::last<sequence>, 
-      std::vector<sequence>::iterator>;
+    boost::transform_iterator<fun::last<scoping_stack>, 
+      std::vector<scoping_stack>::iterator>;
 
  private:
-  std::vector<sequence> variables;
+  std::vector<scoping_stack> variables;
 
  public:
   value_type& operator[](size_t i)
   {
-    variables[i].back();
+    assert(variables.size() > i);
+    assert(variables[i].size() > 0);
+    variables[i].top();
   }
 
   const value_type& operator[](size_t i) const
   {
-    variables[i].back();
+    assert(variables.size() > i);
+    assert(variables[i].size() > 0);
+    variables[i].top();
   }
 
-  void hide(size_t i, const value_type& value)
+  void declare(size_t i, const value_type& value)
   {
-    variables[i].push_back(value);
+    // Extend the symbol table if it is a new variable.
+    if(variables.size() <= i)
+      variables.resize(i+1);
+    variables[i].push(value);
   }
 
-  void push_back(const value_type& value)
+  void unstack(size_t i)
   {
-    variables.push_back({value});
+    assert(variables.size() > i);
+    assert(variables[i].size() > 0);
+    variables[i].pop();
   }
 
   size_t size() const
@@ -85,80 +105,108 @@ public:
 
   iterator begin()
   {
-    return boost::make_transform_iterator<fun::last<sequence>>(variables.begin());
+    return boost::make_transform_iterator<fun::last<scoping_stack>>(variables.begin());
   }
 
   iterator end()
   {
-    return boost::make_transform_iterator<fun::last<sequence>>(variables.end());
+    return boost::make_transform_iterator<fun::last<scoping_stack>>(variables.end());
   }
 };
 
-class Store : public Gecode::Space
+class StoreSpace : public Gecode::Space
 {
-  ScopedVariables variables;
   Gecode::IntVarArray constraints;
+
 public:
-  Store() = default;
+  template <class Iterator>
+  StoreSpace(Iterator b, Iterator e)
+  : constraints(b, e)
+  {}
 
-  template <class ConstraintExpr>
-  void entail(const ConstraintExpr& expr)
-  {
-    Gecode::rel(*this, expr);
-  }
-
-  size_t declare(int min, int max)
-  {
-    variables.push_back(Gecode::IntVar(*this, min, max));
-    return variables.size() - 1;
-  }
-
-  Gecode::IntVar const& operator[](size_t i) const
-  {
-    return variables[i];
-  }
-
-  Gecode::IntVar& operator[](size_t i)
-  {
-    return variables[i];
-  }
-
-  Store(bool share, Store& s) : Gecode::Space(share, s)
+  StoreSpace(bool share, StoreSpace& s) : Gecode::Space(share, s)
   {
     constraints.update(*this, share, s.constraints);
   }
 
   virtual Gecode::Space* copy(bool share)
   {
-    return new Store(share, *this);
+    return new StoreSpace(share, *this);
   }
 
-  template <class ConstraintExpr>
-  bool ask(const ConstraintExpr& expr)
+  Gecode::IntVar& var(size_t i)
   {
-    std::unique_ptr<Store> s(new Store(true, *this));
-    return s->ask_impl(expr);
+    return constraints[i];
   }
 
   void print() const
   {
     std::cout << constraints << std::endl;
   }
+};
 
- private:
-  template <class ConstraintExpr>
-  bool ask_impl(const ConstraintExpr& expr)
+class Constraint;
+
+class Store
+{
+  SymbolTable variables;
+  std::unique_ptr<StoreSpace> transient_store;
+  std::vector<std::unique_ptr<Constraint>> constraints;
+
+public:
+  Store() = default;
+
+  void tell(std::unique_ptr<Constraint>&& constraint)
   {
-    using namespace Gecode;
-    entail(expr);
-    IntVarArgs gvars(variables.begin(), variables.end());
-    constraints = IntVarArray(*this, gvars);
-    branch(*this, constraints, INT_VAR_NONE(), INT_VAL_MIN());
-    return true;
-    // DFS<Store> e(this);
-    // std::unique_ptr<Store> s(e.next());
-    // return static_cast<bool>(s);
+    constraints.push_back(std::move(constraint));
   }
+
+  StoreSpace& space()
+  {
+    assert(transient_store);
+    return *transient_store;
+  }
+
+  void declare(size_t var, const FiniteIntegerDomain& domain)
+  {
+    std::cout << "Declare variable " << var << "[" 
+      << domain.min << ".." << domain.max << "]" << std::endl;
+    variables.declare(var, domain);
+  }
+
+  void unstack(size_t var)
+  {
+    std::cout << "Destroy variable " << var << std::endl;
+    variables.unstack(var);
+  }
+
+
+  Gecode::IntVar& var(size_t i)
+  {
+    assert(transient_store);
+    return transient_store->var(i);
+  }
+
+ //  template <class Constraint>
+ //  bool ask(const Constraint& expr)
+ //  {
+ //    Store s(true, *this);
+ //    return s.ask_impl(expr);
+ //  }
+
+ // private:
+ //  template <class ConstraintExpr>
+ //  bool ask_impl(const ConstraintExpr& expr)
+ //  {
+ //    using namespace Gecode;
+ //    entail(expr);
+ //    IntVarArgs gvars(variables.begin(), variables.end());
+ //    constraints = IntVarArray(*this, gvars);
+ //    branch(*this, constraints, INT_VAR_SIZE_MAX(), INT_VAL_SPLIT_MIN());
+ //    DFS<Store> e(this);
+ //    std::unique_ptr<Store> s(e.next());
+ //    return static_cast<bool>(s);
+ //  }
 };
 
 #endif

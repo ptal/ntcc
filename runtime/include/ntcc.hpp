@@ -18,80 +18,129 @@
 
 #include "store.hpp"
 
-template <size_t var>
-struct Variable{};
 
-template <size_t value>
-struct Constant{};
-
-template <class T, class U>
-struct Less{};
-
-template <class Constraint>
-struct Tell{};
-
-template <class T>
-struct Return
+struct Variable
 {
-  T v;
-  Return(T v) : v(v){}
-  T operator()(Store)
+  size_t n;
+  Variable(size_t n) : n(n) {}
+
+  Gecode::IntVar& operator()(Store& store) const
   {
-    return v;
+    return store.var(n);
   }
 };
 
-// template <class Prog, class Cont>    // compile-time type parameters
-// struct Bind
-// {
-//   Bind(Prog prog, Cont cont)
-//   : prog(prog), cont(cont) {}
-
-//   auto operator()(Store& store) 
-//     -> decltype(cont(prog(store))(store))
-//   {
-//     return cont(prog(store))(store);
-//   }
-
-//   Prog prog;
-//   Cont cont;
-// };
-
-template <class Exp>
-struct Compile;
-
-// template <size_t value>
-// struct Compile<Constant<value>>
-// : Return<Constant<value>>
-// {
-//   Compile() : Return(value) {}
-// };
-
-template <size_t var>
-struct Compile<Variable<var>>
+struct Constant
 {
-  Gecode::IntVar operator()(Store& store)
+  int n;
+  Constant(int n) : n(n) {}
+
+  int operator()(Store&) const
   {
-    return store[var];
+    return n;
   }
+};
+
+struct Constraint
+{
+  virtual void tell(Store&) = 0;
+  virtual ~Constraint(){}
 };
 
 template <class L, class R>
-struct Compile<Less<L, R>>
+struct Less : Constraint
 {
-  Gecode::LinIntExpr operator()(Store& store)
+  L lhs;
+  R rhs;
+
+  Less(L&& lhs, R&& rhs)
+  : lhs(lhs), rhs(rhs){}
+
+  virtual void tell(Store& store)
   {
-    return Compile<L>()(store) < Compile<R>()(store);
+    Gecode::rel(store.space(), lhs(store), Gecode::IRT_LE, rhs(store));
   }
+
+  virtual ~Less(){}
 };
 
-template <class C>
-struct Compile<Tell<C>>
+template <class L, class R>
+std::unique_ptr<Less<L,R>> less(L&& lhs, R&& rhs)
 {
-  void operator()(Store& store)
-  {
-    store.entail(Compile<C>()(store));
-  }
+  return std::unique_ptr<Less<L,R>>(new Less<L,R>(std::move(lhs), std::move(rhs)));
+}
+
+struct Program
+{
+  // Execute internal transition.
+  virtual std::unique_ptr<Program> internal_run(Store&) = 0;
+  virtual ~Program(){}
 };
+
+struct Local : Program
+{
+  size_t var;
+  FiniteIntegerDomain domain;
+  std::unique_ptr<Program> program;
+
+  Local(size_t var, FiniteIntegerDomain&& domain, 
+    std::unique_ptr<Program>&& program)
+  : var(var), domain(domain), program(std::move(program))
+  {}
+
+  virtual std::unique_ptr<Program> internal_run(Store& store)
+  {
+    store.declare(var, domain);
+    std::unique_ptr<Program> residual = program->internal_run(store);
+    store.unstack(var);
+    return residual;
+  }
+
+  virtual ~Local(){}
+};
+
+struct Skip : Program
+{
+  virtual std::unique_ptr<Program> internal_run(Store&)
+  {
+    return nullptr;
+  }
+
+  virtual ~Skip(){}
+};
+
+struct Tell : Program
+{
+  std::unique_ptr<Constraint> constraint;
+
+  Tell(std::unique_ptr<Constraint>&& constraint)
+  : constraint(std::move(constraint))
+  {}
+
+  virtual std::unique_ptr<Program> internal_run(Store& store)
+  {
+    assert(constraint);
+    store.tell(std::move(constraint));
+    return nullptr;
+  }
+
+  virtual ~Tell(){}
+};
+
+std::unique_ptr<Local> local(size_t var, FiniteIntegerDomain&& domain, 
+  std::unique_ptr<Program>&& program)
+{
+  return std::unique_ptr<Local>(new Local(var, std::move(domain), std::move(program)));
+}
+
+std::unique_ptr<Skip> skip()
+{
+  return std::unique_ptr<Skip>(new Skip());
+}
+
+std::unique_ptr<Tell> tell(std::unique_ptr<Constraint>&& constraint)
+{
+  return std::unique_ptr<Tell>(new Tell(std::move(constraint)));
+}
 
 #endif
