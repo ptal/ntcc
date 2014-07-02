@@ -1,0 +1,16 @@
+#[export]
+expression = spacing entail_op
+
+entail_op = STORE ENTAIL
+
+spacing = SPACE* 
+
+// (SPACE / comment)*
+
+// Tokens
+
+STORE = "store" spacing
+ENTAIL = "|=" spacing
+
+SPACE = " " / "\t" / EOL
+EOL = "\r\n" / "\n" / "\r"
