@@ -3,14 +3,22 @@ expression = spacing entail_op
 
 entail_op = STORE ENTAIL
 
-spacing = SPACE* 
+spacing = (SPACE / comment)*
 
-// (SPACE / comment)*
+// (* I'm a comment *)
+comment = COMMENT_OPEN comment_content* COMMENT_CLOSE {}
+comment_content -> Result<(), String> = 
+    comment
+  / (!COMMENT_OPEN !COMMENT_CLOSE .)
+
+//  / (COMMENT_CLOSE .) { Err("You cannot use the *) because it would prematurely close the comment.") }
 
 // Tokens
-
 STORE = "store" spacing
 ENTAIL = "|=" spacing
+
+COMMENT_OPEN = "(*"
+COMMENT_CLOSE = "*)"
 
 SPACE = " " / "\t" / EOL
 EOL = "\r\n" / "\n" / "\r"
